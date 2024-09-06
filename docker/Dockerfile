@@ -14,8 +14,9 @@ WORKDIR /taiga-back
 
 ENV GOSU_VERSION 1.12
 
-# Atualize e instale pacotes
-RUN apt-get update && \
+# Usar espelho alternativo e instalar pacotes
+RUN sed -i 's|http://deb.debian.org/debian|http://ftp.us.debian.org/debian|g' /etc/apt/sources.list && \
+    apt-get update && \
     apt-get install -y \
         build-essential \
         gettext \
