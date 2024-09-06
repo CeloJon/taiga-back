@@ -27,9 +27,8 @@ WORKDIR /taiga-back
 ENV GOSU_VERSION 1.12
 
 RUN set -eux; \
-    sed -i 's/deb.debian.org/ftp.debian.org/' /etc/apt/sources.list && apt-get update; \
+    apt-get update; \
     # install system dependencies
-    apt-get install -y --no-install-recommends ca-certificates wget; \
     apt-get install -y \
        build-essential \
        gettext \
