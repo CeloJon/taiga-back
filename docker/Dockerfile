@@ -1,57 +1,44 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-#
-# Copyright (c) 2021-present Kaleidos INC
+# Usar a imagem base UBI8 do Red Hat com Python 3.11
+FROM registry.access.redhat.com/ubi8/python-3.11
 
-FROM python:3.11-slim
-LABEL maintainer="support@taiga.io"
-
-# Avoid prompting for configuration
-ENV DEBIAN_FRONTEND=noninteractive
+USER root
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONFAULTHANDLER=1
 
-# Use a virtualenv
+# Usar um virtualenv
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Get the code
+# Obter o código
 COPY . /taiga-back
 WORKDIR /taiga-back
 
-# grab gosu for easy step-down from root
-# https://github.com/tianon/gosu/blob/master/INSTALL.md
-ENV GOSU_VERSION 1.12
-
+# Instalar dependências do sistema
 RUN set -eux; \
-    apt-get update; \
-    # install system dependencies
-    apt-get install -y \
-       build-essential \
+    dnf install -y \
+       gcc \
        gettext \
-       # libpq5 needed in runtime for psycopg2
-       libpq5 \
-       libpq-dev \
+       libpq-devel \
        git \
        net-tools \
-       procps \
-       wget; \
-    # install gosu
-    apt-get install -y --no-install-recommends ca-certificates wget; \
-    dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
-    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
-	wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
+       procps-ng \
+       wget \
+       gnupg2; \
+    # Instalar gosu
+    GOSU_VERSION=1.12; \
+    ARCH=$(uname -m); \
+    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$ARCH"; \
+    wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$ARCH.asc"; \
     chmod +x /usr/local/bin/gosu; \
-    # verify gosu signature
+    # Verificar assinatura do gosu
     export GNUPGHOME="$(mktemp -d)"; \
-	gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
-	gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
-	command -v gpgconf && gpgconf --kill all || :; \
-	rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc; \
-    # install Taiga dependencies
+    gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
+    gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
+    command -v gpgconf && gpgconf --kill all || :; \
+    rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc; \
+    # Instalar dependências do Taiga
     python -m pip install --upgrade pip; \
     python -m pip install wheel; \
     python -m pip install -r requirements.txt; \
@@ -61,24 +48,24 @@ RUN set -eux; \
     chmod +x docker/entrypoint.sh; \
     chmod +x docker/async_entrypoint.sh; \
     cp docker/config.py settings/config.py; \
-    #  create taiga group and user to use it and give permissions over the code (in entrypoint)
+    # Criar grupo e usuário taiga para usar e dar permissões sobre o código
     groupadd --system taiga --gid=999; \
     useradd --system --no-create-home --gid taiga --uid=999 --shell=/bin/bash taiga; \
     mkdir -p /taiga-back/media/exports; \
     chown -R taiga:taiga /taiga-back; \
-    # remove unneeded files and packages
-    apt-get purge -y \
-       build-essential \
+    # Remover arquivos e pacotes desnecessários
+    dnf remove -y \
+       gcc \
        gettext \
        git \
-       libpq-dev \
+       libpq-devel \
        net-tools \
-       procps \
+       procps-ng \
        wget; \
-    apt-get autoremove -y; \
-    rm -rf /var/lib/apt/lists/*; \
+    dnf autoremove -y; \
+    rm -rf /var/cache/dnf; \
     rm -rf /root/.cache; \
-    # clean taiga
+    # Limpar taiga
     rm requirements.txt; \
     rm requirements-contribs.txt; \
     find . -name '__pycache__' -exec rm -r '{}' +; \
