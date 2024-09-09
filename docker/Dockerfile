@@ -1,78 +1,70 @@
-FROM python:3.11-slim
+# Use a Red Hat Universal Base Image (UBI) como base
+FROM registry.access.redhat.com/ubi8/ubi:latest
 LABEL maintainer="support@taiga.io"
 
+# Avoid prompting for configuration
 ENV DEBIAN_FRONTEND=noninteractive
+
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONFAULTHANDLER=1
 
-RUN python -m venv /opt/venv
+# Install Python 3.11
+RUN dnf -y install \
+    python3 \
+    python3-pip \
+    python3-virtualenv \
+    && dnf clean all
+
+# Create and activate a virtualenv
+RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Get the code
 COPY . /taiga-back
 WORKDIR /taiga-back
 
-ENV GOSU_VERSION 1.12
+# Install system dependencies
+RUN dnf -y install \
+    git \
+    gettext \
+    libpq \
+    libpq-devel \
+    net-tools \
+    procps-ng \
+    wget \
+    gnupg2 \
+    && dnf clean all
 
-# Usar espelho alternativo e instalar pacotes
-RUN sed -i 's|http://deb.debian.org/debian|http://ftp.us.debian.org/debian|g' /etc/apt/sources.list && \
-    apt-get update && \
-    apt-get install -y \
-        build-essential \
-        gettext \
-        libpq5 \
-        libpq-dev \
-        git \
-        net-tools \
-        procps \
-        wget \
-        ca-certificates
+# Install Taiga dependencies
+RUN python -m pip install --upgrade pip \
+    && python -m pip install wheel \
+    && python -m pip install -r requirements.txt \
+    && python -m pip install -r requirements-contribs.txt \
+    && python manage.py compilemessages \
+    && python manage.py collectstatic --no-input \
+    && chmod +x docker/entrypoint.sh \
+    && chmod +x docker/async_entrypoint.sh \
+    && cp docker/config.py settings/config.py \
+    && groupadd --system taiga --gid=999 \
+    && useradd --system --no-create-home --gid taiga --uid=999 --shell=/bin/bash taiga \
+    && mkdir -p /taiga-back/media/exports \
+    && chown -R taiga:taiga /taiga-back
 
-# Baixar e instalar gosu
-RUN dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')" && \
-    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch" && \
-    wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc" && \
-    chmod +x /usr/local/bin/gosu
-
-# Verificar a assinatura do gosu
-RUN export GNUPGHOME="$(mktemp -d)" && \
-    gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 && \
-    gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu && \
-    command -v gpgconf && gpgconf --kill all || : && \
-    rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc
-
-# Instalar dependências Python
-RUN python -m pip install --upgrade pip && \
-    python -m pip install wheel && \
-    python -m pip install -r requirements.txt && \
-    python -m pip install -r requirements-contribs.txt
-
-# Executar comandos Django
-RUN python manage.py compilemessages && \
-    python manage.py collectstatic --no-input
-
-# Configuração e permissões
-RUN chmod +x docker/entrypoint.sh && \
-    chmod +x docker/async_entrypoint.sh && \
-    cp docker/config.py settings/config.py
-
-# Limpeza
-RUN apt-get purge -y \
-        build-essential \
-        gettext \
-        git \
-        libpq-dev \
-        net-tools \
-        procps \
-        wget && \
-    apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -rf /root/.cache && \
-    rm requirements.txt && \
-    rm requirements-contribs.txt && \
-    find . -name '__pycache__' -exec rm -r '{}' + && \
-    find . -name '*pyc' -exec rm -r '{}' + && \
-    find . -name '*po' -exec rm -r '{}' +
+# Remove unneeded files and packages
+RUN dnf remove -y \
+    git \
+    net-tools \
+    procps-ng \
+    wget \
+    && dnf autoremove -y \
+    && rm -rf /var/cache/dnf \
+    && rm -rf /root/.cache \
+    && rm requirements.txt \
+    && rm requirements-contribs.txt \
+    && find . -name '__pycache__' -exec rm -r '{}' + \
+    && find . -name '*pyc' -exec rm -r '{}' + \
+    && find . -name '*po' -exec rm -r '{}' +
 
 ENV DJANGO_SETTINGS_MODULE=settings.config
 
