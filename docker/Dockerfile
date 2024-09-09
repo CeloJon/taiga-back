@@ -38,9 +38,9 @@ RUN dnf -y install \
 
 # Install Taiga dependencies
 RUN python -m pip install --upgrade pip \
-    && python -m pip install wheel \
-    && python -m pip install -r requirements.txt \
-    && python -m pip install -r requirements-contribs.txt \
+    && python -m pip install --no-cache-dir wheel \
+    && python -m pip install --no-cache-dir -r requirements.txt \
+    && python -m pip install --no-cache-dir -r requirements-contribs.txt \
     && python manage.py compilemessages \
     && python manage.py collectstatic --no-input \
     && chmod +x docker/entrypoint.sh \
