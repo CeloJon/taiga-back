@@ -22,7 +22,7 @@ billiard==3.6.4.0
     # via celery
 bleach==4.1.0
     # via -r requirements.in
-cairocffi==1.2.0
+cairocffi==1.1.0
     # via cairosvg
 cairosvg==2.6.0
     # via -r requirements.in
