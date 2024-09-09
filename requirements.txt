@@ -10,7 +10,7 @@ amqp==5.1.1
     # via kombu
 asana==3.1.0
     # via -r requirements.in
-asgiref==3.6.0
+asgiref==3.4.1
     # via django
 async-timeout==4.0.2
     # via redis
