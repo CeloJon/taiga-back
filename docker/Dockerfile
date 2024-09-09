@@ -2,30 +2,16 @@
 FROM registry.access.redhat.com/ubi8/ubi:latest
 LABEL maintainer="support@taiga.io"
 
-# Avoid prompting for configuration
-ENV DEBIAN_FRONTEND=noninteractive
-
+# Set environment variables to avoid interactive prompts
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONFAULTHANDLER=1
 
-# Install Python 3.11
+# Install system dependencies
 RUN dnf -y install \
     python3 \
     python3-pip \
     python3-virtualenv \
-    && dnf clean all
-
-# Create and activate a virtualenv
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Get the code
-COPY . /taiga-back
-WORKDIR /taiga-back
-
-# Install system dependencies
-RUN dnf -y install \
     git \
     gettext \
     libpq \
@@ -36,7 +22,15 @@ RUN dnf -y install \
     gnupg2 \
     && dnf clean all
 
-# Install Taiga dependencies
+# Create and activate a virtual environment
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Get the code
+COPY . /taiga-back
+WORKDIR /taiga-back
+
+# Install Python dependencies
 RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir wheel \
     && python -m pip install --no-cache-dir -r requirements.txt \
@@ -51,7 +45,7 @@ RUN python -m pip install --upgrade pip \
     && mkdir -p /taiga-back/media/exports \
     && chown -R taiga:taiga /taiga-back
 
-# Remove unneeded files and packages
+# Clean up
 RUN dnf remove -y \
     git \
     net-tools \
