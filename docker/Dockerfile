@@ -41,6 +41,11 @@ RUN set -eux; \
     gpg --batch --keyserver hkp://keyserver.ubuntu.com --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
     gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu || echo "GPG verification skipped"; \
     rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc
+    
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates openssl; \
+    update-ca-certificates
 
 
 # Install Python dependencies
