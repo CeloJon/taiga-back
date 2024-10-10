@@ -22,68 +22,54 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY . /taiga-back
 WORKDIR /taiga-back
 
-# grab gosu for easy step-down from root
-# https://github.com/tianon/gosu/blob/master/INSTALL.md
-ENV GOSU_VERSION 1.12
-
+# Install system dependencies in separate steps for better error handling
 RUN set -eux; \
     apt-get update; \
-    # install system dependencies
-    apt-get install -y \
-       build-essential \
-       gettext \
-       # libpq5 needed in runtime for psycopg2
-       libpq5 \
-       libpq-dev \
-       git \
-       net-tools \
-       procps \
-       wget; \
-    # install gosu
-    apt-get install -y --no-install-recommends ca-certificates wget; \
+    apt-get install -y build-essential gettext libpq5 libpq-dev git net-tools procps wget
+
+# Install gosu
+RUN set -eux; \
+    apt-get install -y --no-install-recommends ca-certificates; \
     dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
     wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
     wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
     chmod +x /usr/local/bin/gosu; \
-    # verify gosu signature
     export GNUPGHOME="$(mktemp -d)"; \
     gpg --batch --keyserver hkp://keyserver.ubuntu.com --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
     gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu || echo "GPG verification skipped"; \
-    command -v gpgconf && gpgconf --kill all || :; \
-    rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc; \
-    # install Taiga dependencies
+    rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc
+
+# Install Python dependencies
+RUN set -eux; \
     python -m pip install --upgrade pip; \
     python -m pip install wheel; \
     python -m pip install -r requirements.txt; \
-    python -m pip install -r requirements-contribs.txt; \
+    python -m pip install -r requirements-contribs.txt
+
+# Compile messages and collect static files
+RUN set -eux; \
     python manage.py compilemessages; \
-    python manage.py collectstatic --no-input; \
+    python manage.py collectstatic --no-input
+
+# Setup permissions and users
+RUN set -eux; \
     chmod +x docker/entrypoint.sh; \
     chmod +x docker/async_entrypoint.sh; \
     cp docker/config.py settings/config.py; \
-    #  create taiga group and user to use it and give permissions over the code (in entrypoint)
     groupadd --system taiga --gid=999; \
     useradd --system --no-create-home --gid taiga --uid=999 --shell=/bin/bash taiga; \
     mkdir -p /taiga-back/media/exports; \
-    chown -R taiga:taiga /taiga-back; \
-    # remove unneeded files and packages
-    apt-get purge -y \
-       build-essential \
-       gettext \
-       git \
-       libpq-dev \
-       net-tools \
-       procps \
-       wget; \
+    chown -R taiga:taiga /taiga-back
+
+# Clean up unnecessary packages and files
+RUN set -eux; \
+    apt-get purge -y build-essential gettext git libpq-dev net-tools procps wget; \
     apt-get autoremove -y; \
-    rm -rf /var/lib/apt/lists/*; \
-    rm -rf /root/.cache; \
-    # clean taiga
-    rm requirements.txt; \
-    rm requirements-contribs.txt; \
+    rm -rf /var/lib/apt/lists/* /root/.cache; \
+    rm requirements.txt requirements-contribs.txt; \
     find . -name '__pycache__' -exec rm -r '{}' +; \
-    find . -name '*pyc' -exec rm -r '{}' +; \
-    find . -name '*po' -exec rm -r '{}' +
+    find . -name '*.pyc' -exec rm -r '{}' +; \
+    find . -name '*.po' -exec rm -r '{}' +
 
 ENV DJANGO_SETTINGS_MODULE=settings.config
 
