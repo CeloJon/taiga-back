@@ -18,11 +18,14 @@ ENV PYTHONFAULTHANDLER=1
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Definir a versão do gosu
+ENV GOSU_VERSION 1.12
+
 # Get the code
 COPY . /taiga-back
 WORKDIR /taiga-back
 
-# Install system dependencies in separate steps for better error handling
+# Install system dependencies
 RUN set -eux; \
     apt-get update; \
     apt-get install -y build-essential gettext libpq5 libpq-dev git net-tools procps wget
